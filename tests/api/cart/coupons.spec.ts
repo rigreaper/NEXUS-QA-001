@@ -1,4 +1,5 @@
 import { test, expect } from '../../../src/fixtures/api.fixture.js';
+import { query } from '../../../src/database/clients/postgres-client.js';
 
 
 test('guest can apply a valid percentage coupon', async ({ api }) => {
@@ -84,7 +85,17 @@ test('cart rejects an unknown coupon code', async ({ api }) => {
     expect(body.correlationId).toBeTruthy();
 });
 
-test('cart rejects a coupon that has not started', async ({ api }) => {
+test('cart rejects a coupon that has not started', async ({ api, sandbox }) => {
+    const futureCoupon = await query<{ code: string }>(
+        `UPDATE coupons
+         SET valid_from = CURRENT_TIMESTAMP + INTERVAL '1 day'
+         WHERE sandbox_id = $1 AND code = $2
+         RETURNING code`,
+        [sandbox.sandboxId, 'FUTURE15']
+    );
+
+    expect(futureCoupon).toHaveLength(1);
+
     const cartResponse = await api.post('/api/v1/carts');
     expect(cartResponse.status()).toBe(201);
 

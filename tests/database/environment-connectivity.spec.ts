@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 import { testConfig } from '../../src/config/test-config.js';
 import { query, closeDatabase } from '../../src/database/clients/postgres-client.js';
 
+test.use({ serviceWorkers: 'block' });
+
 test('local API and PostgreSQL are available', async ({ page, request }) => {
     const productResponsePromise = page.waitForResponse(response => {
         const responseUrl = new URL(response.url());
@@ -11,10 +13,18 @@ test('local API and PostgreSQL are available', async ({ page, request }) => {
             response.request().method() === 'GET';
     });
 
+    await page.context().grantPermissions(
+        ['local-network-access'],
+        { origin: new URL(testConfig.baseURL).origin }
+    );
+
     await page.goto(testConfig.qaShopPath);
 
     const productResponse = await productResponsePromise;
     expect(productResponse.status()).toBe(200);
+    expect(new URL(productResponse.url()).origin).toBe(
+        new URL(testConfig.apiBaseURL).origin
+    );
     //await expect(page.getByTestId('urun-listesi')).toBeVisible();
 
     const healthResponse = await request.get(

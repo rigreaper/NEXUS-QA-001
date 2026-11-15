@@ -9,12 +9,10 @@ test.beforeEach(async ({ page, storeLoginPage, inventoryPage }) => {
 
     await expect(storeLoginPage.emailInput).toBeVisible();
 
-    await storeLoginPage.signIn(
+    await storeLoginPage.signInSuccessfully(
         testConfig.storeCredentials.email,
         testConfig.storeCredentials.password
     );
-
-    await expect(storeLoginPage.signOutButton).toBeVisible();
 });
 
 test('user can sort products by price in ascending order', async ({ inventoryPage }) => {

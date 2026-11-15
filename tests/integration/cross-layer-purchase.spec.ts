@@ -53,7 +53,7 @@ test('QA-Shop purchase flow: UI → API → Database', async ({
 }) => {
     await page.context().grantPermissions(
         ['local-network-access'],
-        { origin: 'https://learnqa.dev' }
+        { origin: new URL(testConfig.baseURL).origin }
     );
 
     await page.route('**/api/v1/**', async route => {
@@ -81,6 +81,9 @@ test('QA-Shop purchase flow: UI → API → Database', async ({
     const sandboxInfoResponse = await sandboxInfoResponsePromise;
 
     expect(sandboxInfoResponse.status()).toBe(200);
+    expect(new URL(sandboxInfoResponse.url()).origin).toBe(
+        new URL(testConfig.apiBaseURL).origin
+    );
 
     const sandboxInfo = await sandboxInfoResponse.json();
 
@@ -92,7 +95,7 @@ test('QA-Shop purchase flow: UI → API → Database', async ({
 
     await storeLoginPage.openLoginDialog();
 
-    await storeLoginPage.signIn(
+    await storeLoginPage.signInSuccessfully(
         sandbox.demoUser.email,
         sandbox.demoUser.password
     );

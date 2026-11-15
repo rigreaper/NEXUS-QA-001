@@ -25,12 +25,10 @@ test.beforeEach(async ({ page, storeLoginPage }) => {
     await expect(storeLoginPage.emailInput).toBeVisible();
     await expect(storeLoginPage.passwordInput).toBeVisible();
 
-    await storeLoginPage.signIn(
+    await storeLoginPage.signInSuccessfully(
         testConfig.storeCredentials.email,
         testConfig.storeCredentials.password
     );
-
-    await expect(storeLoginPage.signOutButton).toBeVisible();
 });
 
 

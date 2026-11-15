@@ -1,7 +1,7 @@
 
 services:
   db:
-    image: ghcr.io/hasankocaman/qa-shop-db:latest
+    image: ghcr.io/hasankocaman/qa-shop-db@sha256:8f8882a6c06a1522b03fe25750efc905085fffe5465ae06325e6c3c3f72bd56e
     environment:
       POSTGRES_USER: qashop
       POSTGRES_PASSWORD: qashop
@@ -15,7 +15,7 @@ services:
       retries: 10
 
   api:
-    image: ghcr.io/hasankocaman/qa-shop-api:latest
+    image: ghcr.io/hasankocaman/qa-shop-api@sha256:db18e3497b3f463d32dd6029f7ab28ecaba87d5302cca2bccfbb3a82dfb5b862
     environment:
       PORT: "4000"
       NODE_ENV: production

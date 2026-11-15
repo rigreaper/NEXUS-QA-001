@@ -6,6 +6,7 @@ export default defineConfig({
     testDir: './tests',
 
     fullyParallel: true,
+    ...(process.env.CI ? { workers: 1 } : {}),
 
     reporter: [
         ['list'],

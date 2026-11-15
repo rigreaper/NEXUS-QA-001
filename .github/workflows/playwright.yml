@@ -41,18 +41,28 @@ jobs:
       - name: Run Playwright tests
         run: npx playwright test
 
-      - name: Show service logs on failure
+      - name: Capture service logs on failure
         if: failure()
-        run: docker compose logs
+        run: docker compose logs --no-color > "$RUNNER_TEMP/docker-service-logs.txt" 2>&1 || true
 
       - name: Stop API and database
         if: always()
         run: docker compose down -v
+
+      - name: Upload Docker service logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-service-logs
+          path: ${{ runner.temp }}/docker-service-logs.txt
+          if-no-files-found: ignore
 
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: playwright-report/
+          path: |
+            playwright-report/
+            test-results/
           retention-days: 30

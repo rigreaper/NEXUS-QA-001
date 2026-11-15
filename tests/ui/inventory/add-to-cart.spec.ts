@@ -7,12 +7,10 @@ test.beforeEach(async ({ page, storeLoginPage }) => {
 
     await storeLoginPage.openLoginDialog();
 
-    await storeLoginPage.signIn(
+    await storeLoginPage.signInSuccessfully(
         testConfig.storeCredentials.email,
         testConfig.storeCredentials.password
     );
-
-    await expect(storeLoginPage.signOutButton).toBeVisible();
 });
 
 test('user can add a product and update its quantity', async ({
