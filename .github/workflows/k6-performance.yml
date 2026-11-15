@@ -1,0 +1,79 @@
+name: k6 Performance Tests
+permissions:
+  contents: read
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+    paths:
+      - 'performance/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/k6-performance.yml'
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'performance/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/k6-performance.yml'
+
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Select the performance test'
+        required: true
+        type: choice
+        options:
+          - smoke
+          - load
+        default: smoke
+
+jobs:
+  k6:
+    name: Run k6 Performance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: '2.4.0'
+
+      - name: Start API and database
+        run: docker compose up -d --wait
+
+      - name: Create results directory
+        run: mkdir -p performance-results
+
+      - name: Run k6 smoke test
+        if: github.event_name != 'workflow_dispatch' || inputs.test_type == 'smoke'
+        run: |
+          k6 run \
+            --summary-export=performance-results/smoke-summary.json \
+            performance/smoke.js
+
+      - name: Run k6 load test
+        if: github.event_name == 'workflow_dispatch' && inputs.test_type == 'load'
+        run: |
+          k6 run \
+            --summary-export=performance-results/load-summary.json \
+            performance/load.js
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-performance-results
+          path: performance-results/
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Stop API and database
+        if: always()
+        run: docker compose down -v
