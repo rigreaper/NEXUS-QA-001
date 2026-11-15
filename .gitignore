@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Playwright generated files
+
+playwright-report/
+playwright/.cache/
+
+# Documentation later
+docs/
+bug report
+ai_boundary.txt/
+test-results/
+project-structure.txt/
+# Build output
+dist/
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE and operating system
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
