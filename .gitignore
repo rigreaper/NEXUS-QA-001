@@ -6,17 +6,11 @@ node_modules/
 .env.*
 !.env.example
 
-# Playwright generated files
-
+# Playwright
 playwright-report/
 playwright/.cache/
-
-# Documentation later
-docs/
-bug report
-ai_boundary.txt/
 test-results/
-project-structure.txt/
+
 # Build output
 dist/
 coverage/
@@ -25,8 +19,12 @@ coverage/
 *.log
 npm-debug.log*
 
-# IDE and operating system
+# IDE and OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Temporary files
+project-structure.txt
+docs/
