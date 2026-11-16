@@ -599,6 +599,8 @@ Expected result:
 
 The test must not depend on AI randomly returning an incorrect answer. Safety rejection should be verified deterministically through controlled fixtures or candidate responses.
 
+The live CI workflow exercises two successful locator-recovery scenarios and one expected rejection. Its job summary aggregates recovery outcomes, while per-attempt JSON and text records are included in the uploaded Playwright artifact. A `HEALING_FAILED` recovery outcome can be expected by a test and does not necessarily mean the test itself failed.
+
 ---
 
 ## 17. Limitations and Non-Goals

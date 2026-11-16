@@ -1,7 +1,7 @@
 
 import 'dotenv/config';
 
-import { appendFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { test } from '@playwright/test';
 import { z } from 'zod';
 import type { Locator, Page } from '@playwright/test';
@@ -1051,6 +1051,8 @@ async function validateCandidate(
 // Playwright test reporting
 // --------------------------------------------------
 
+let healingReportSequence = 0;
+
 async function attachHealingRecord(record: HealingRecord): Promise<void> {
     if (record.status !== 'NORMAL_PASS') {
         const diagnosticTags = [
@@ -1088,14 +1090,23 @@ async function attachHealingRecord(record: HealingRecord): Promise<void> {
                 retry: testInfo.retry,
             },
         };
+        const reportSequence = ++healingReportSequence;
+        const jsonName =
+            `nexus-self-healing-${record.status.toLowerCase()}-${reportSequence}.json`;
+        const jsonPath = testInfo.outputPath(jsonName);
+        const textName =
+            `nexus-self-healing-${record.status.toLowerCase()}-${reportSequence}.txt`;
 
-        await testInfo.attach(
-            `nexus-self-healing-${record.status.toLowerCase()}.json`,
-            {
-                body: JSON.stringify(reportRecord, null, 2),
-                contentType: 'application/json',
-            },
+        mkdirSync(testInfo.outputDir, { recursive: true });
+        writeFileSync(
+            jsonPath,
+            JSON.stringify(reportRecord, null, 2),
+            'utf8',
         );
+        await testInfo.attach(jsonName, {
+            path: jsonPath,
+            contentType: 'application/json',
+        });
 
         const locatorSummary = record.replacementLocator
             ? `Replacement used: ${record.replacementLocator}`
@@ -1116,82 +1127,22 @@ async function attachHealingRecord(record: HealingRecord): Promise<void> {
             `OpenAI diagnostics: ${JSON.stringify(record.openAI ?? {})}`,
         ].join('\n');
 
-        await testInfo.attach(
-            `nexus-self-healing-${record.status.toLowerCase()}.txt`,
-            {
-                body: textReport,
-                contentType: 'text/plain',
-            },
-        );
+        const textPath = testInfo.outputPath(textName);
+        writeFileSync(textPath, textReport, 'utf8');
+        await testInfo.attach(textName, {
+            path: textPath,
+            contentType: 'text/plain',
+        });
 
         testInfo.annotations.push({
             type: 'nexus-self-healing',
             description: `${record.status}: ${record.target} | ${locatorSummary}`,
         });
 
-        appendGitHubStepSummary(record, testInfo.titlePath.join(' > '));
-    } catch {
+    } catch (error) {
         // Reporting must never replace or hide the actual test failure.
+        console.error('[NEXUS-QA] Could not attach self-healing details.', error);
     }
-}
-
-function appendGitHubStepSummary(
-    record: HealingRecord,
-    testTitle: string,
-): void {
-    const summaryPath = process.env.GITHUB_STEP_SUMMARY;
-
-    if (
-        process.env.NEXUS_AI_REPORT !== 'true' ||
-        !summaryPath
-    ) {
-        return;
-    }
-
-    const code = (value: string): string =>
-        `\`${value.replace(/\r?\n/g, ' ').replace(/`/g, '\\`')}\``;
-    const outcome = record.status === 'NORMAL_PASS'
-        ? 'The original locator worked; AI recovery was not needed.'
-        : record.status === 'HEALED_PASS'
-            ? 'AI recovery succeeded; the validated replacement action succeeded.'
-            : record.status === 'HEALING_FAILED'
-                ? 'Recovery was attempted but did not complete successfully.'
-                : 'Recovery was unavailable; the original failure was preserved.';
-    const openAIDetails = record.openAI
-        ? [
-            record.openAI.model ? `model=${record.openAI.model}` : undefined,
-            record.openAI.httpStatus !== undefined
-                ? `http=${record.openAI.httpStatus}`
-                : undefined,
-            record.openAI.responseStatus
-                ? `response=${record.openAI.responseStatus}`
-                : undefined,
-            record.openAI.incompleteReason
-                ? `incomplete=${record.openAI.incompleteReason}`
-                : undefined,
-            record.openAI.errorCode
-                ? `error=${record.openAI.errorCode}`
-                : undefined,
-            record.openAI.requestDurationMs !== undefined
-                ? `request_ms=${record.openAI.requestDurationMs}`
-                : undefined,
-        ].filter((item): item is string => item !== undefined).join(', ')
-        : 'not called';
-    const lines = [
-        `### Self-healing result: ${record.status}`,
-        '',
-        `- Test: ${code(testTitle)}`,
-        `- Outcome: ${outcome}`,
-        `- Original locator: ${code(record.originalLocator)}`,
-        `- Proposed locator: ${record.proposedLocator ? code(record.proposedLocator) : 'none'}`,
-        `- Replacement used: ${record.replacementLocator ? code(record.replacementLocator) : 'none'}`,
-        `- Failure stage: ${record.failureStage ?? 'none'}`,
-        `- Details: ${record.validationReason ? code(record.validationReason) : 'none'}`,
-        `- OpenAI: ${code(openAIDetails)}`,
-        '',
-    ];
-
-    appendFileSync(summaryPath, `${lines.join('\n')}\n`, 'utf8');
 }
 
 // --------------------------------------------------

@@ -46,10 +46,54 @@ test.describe('AI self-healing integration', () => {
         ).toBeVisible();
     });
 
+    test('recovers from a second incorrect locator using real OpenAI', async ({
+        page,
+    }) => {
+        test.setTimeout(60_000);
+        page.setDefaultTimeout(2_000);
+
+        await page.setContent(`
+            <button
+                data-testid="account-login"
+                onclick="this.dataset.clicked = 'true'"
+            >
+                Login
+            </button>
+        `);
+
+        await nx.click(
+            page,
+            page.getByTestId('intentionally-wrong-account-login'),
+            {
+                target: 'Login button',
+                context: 'Account access page',
+            },
+        );
+
+        await expect(
+            page.getByTestId('account-login'),
+        ).toHaveAttribute('data-clicked', 'true');
+
+        const attachment = test.info().attachments.find(
+            (item) =>
+                item.name.startsWith('nexus-self-healing-') &&
+                item.contentType === 'application/json',
+        );
+
+        expect(attachment?.body).toBeDefined();
+
+        const record = JSON.parse(
+            attachment!.body!.toString('utf8'),
+        ) as {
+            status: string;
+        };
+
+        expect(record.status).toBe('HEALED_PASS');
+    });
+
     test('rejects an unrelated candidate and preserves the original failure', async ({
         page,
     }) => {
-   
         page.setDefaultTimeout(2_000);
 
         const incorrectLocator = page.getByTestId(
