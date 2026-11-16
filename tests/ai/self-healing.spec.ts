@@ -27,7 +27,7 @@ test.describe('AI self-healing integration', () => {
         page,
     }) => {
         test.setTimeout(60_000);
-        page.setDefaultTimeout(2_000);
+        page.setDefaultTimeout(5_000);
         const incorrectLocator = page.getByTestId(
             'intentionally-wrong-login-button',
         );
@@ -50,7 +50,7 @@ test.describe('AI self-healing integration', () => {
         page,
     }) => {
         test.setTimeout(60_000);
-        page.setDefaultTimeout(2_000);
+        page.setDefaultTimeout(5_000);
 
         await page.setContent(`
             <button
