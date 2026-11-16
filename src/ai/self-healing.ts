@@ -1104,7 +1104,7 @@ async function attachHealingRecord(record: HealingRecord): Promise<void> {
             'utf8',
         );
         await testInfo.attach(jsonName, {
-            path: jsonPath,
+            body: JSON.stringify(reportRecord, null, 2),
             contentType: 'application/json',
         });
 
@@ -1130,7 +1130,7 @@ async function attachHealingRecord(record: HealingRecord): Promise<void> {
         const textPath = testInfo.outputPath(textName);
         writeFileSync(textPath, textReport, 'utf8');
         await testInfo.attach(textName, {
-            path: textPath,
+            body: textReport,
             contentType: 'text/plain',
         });
 
@@ -1138,7 +1138,6 @@ async function attachHealingRecord(record: HealingRecord): Promise<void> {
             type: 'nexus-self-healing',
             description: `${record.status}: ${record.target} | ${locatorSummary}`,
         });
-
     } catch (error) {
         // Reporting must never replace or hide the actual test failure.
         console.error('[NEXUS-QA] Could not attach self-healing details.', error);
