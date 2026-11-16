@@ -1,4 +1,3 @@
-
 import { defineConfig } from '@playwright/test';
 import { testConfig } from './src/config/test-config.js';
 
@@ -20,9 +19,18 @@ export default defineConfig({
 
     projects: [
         {
+            name: 'ai',
+            testMatch: '**/ai/**/*.spec.ts',
+            use: {
+                browserName: 'chromium',
+            },
+        },
+
+        {
             name: 'api',
             testMatch: '**/api/**/*.spec.ts',
         },
+        
         {
             name: 'chromium',
             testMatch: '**/ui/**/*.spec.ts',

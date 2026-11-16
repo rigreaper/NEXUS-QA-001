@@ -9,7 +9,6 @@ node_modules/
 # Playwright
 playwright-report/
 playwright/.cache/
-test-results/
 
 # Build output
 dist/
@@ -26,6 +25,5 @@ npm-debug.log*
 Thumbs.db
 
 # Temporary files
-docs/
 bug_report.txt
 project-structure.txt

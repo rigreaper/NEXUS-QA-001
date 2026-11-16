@@ -1,0 +1,90 @@
+name: AI Self-Healing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.env.example'
+      - '.github/workflows/ai-self-healing.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'playwright.config.ts'
+      - 'src/ai/**'
+      - 'src/config/test-config.ts'
+      - 'tests/ai/**'
+
+  pull_request:
+    branches: [main]
+    paths:
+      - '.env.example'
+      - '.github/workflows/ai-self-healing.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'playwright.config.ts'
+      - 'src/ai/**'
+      - 'src/config/test-config.ts'
+      - 'tests/ai/**'
+
+  workflow_dispatch:
+    inputs:
+      run_live_ai:
+        description: Run the real OpenAI self-healing test
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  live-self-healing:
+    name: Live OpenAI self-healing test
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.run_live_ai)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-6-luna' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Check OpenAI secret
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::Add OPENAI_API_KEY under repository Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Run real self-healing test
+        run: >-
+          npx playwright test tests/ai/self-healing.spec.ts
+          --project=ai
+          --grep "recovers from an incorrect locator using real OpenAI"
+
+      - name: Upload live AI Playwright report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-ai-self-healing-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 30
