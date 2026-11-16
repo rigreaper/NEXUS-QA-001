@@ -46,32 +46,33 @@ test.describe('AI self-healing integration', () => {
         ).toBeVisible();
     });
 
-    test('rejects an unrelated candidate and preserves the original failure', async ({
+    test('recovers from a second incorrect locator using real OpenAI', async ({
         page,
     }) => {
-   
+        test.setTimeout(60_000);
         page.setDefaultTimeout(2_000);
 
-        const incorrectLocator = page.getByTestId(
-            'non-existent-emergency-control',
+        await page.setContent(`
+            <button
+                data-testid="account-login"
+                onclick="this.dataset.clicked = 'true'"
+            >
+                Login
+            </button>
+        `);
+
+        await nx.click(
+            page,
+            page.getByTestId('intentionally-wrong-account-login'),
+            {
+                target: 'Login button',
+                context: 'Account access page',
+            },
         );
 
-        let originalError: unknown;
-
-        try {
-            await nx.click(
-                page,
-                incorrectLocator,
-                {
-                    target: 'Quantum reactor self-destruct authorization control',
-                    context: 'This control does not exist on QA-Shop.',
-                },
-            );
-        } catch (error) {
-            originalError = error;
-        }
-
-        expect(originalError).toBeInstanceOf(Error);
+        await expect(
+            page.getByTestId('account-login'),
+        ).toHaveAttribute('data-clicked', 'true');
 
         const attachment = test.info().attachments.find(
             (item) =>
@@ -85,14 +86,9 @@ test.describe('AI self-healing integration', () => {
             attachment!.body!.toString('utf8'),
         ) as {
             status: string;
-            retrySucceeded?: boolean;
         };
 
-        expect(record.status).toBe('HEALING_FAILED');
-        expect(record.retrySucceeded).toBe(false);
-
-        await expect(
-            page.getByTestId('giris-eposta'),
-        ).not.toBeVisible();
+        expect(record.status).toBe('HEALED_PASS');
     });
+
 });

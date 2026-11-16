@@ -133,6 +133,22 @@ test.describe('NEXUS-QA self-healing — mock tests', () => {
         ).toHaveAttribute('data-clicked', 'true');
 
         expect(fetchCalls).toBe(1);
+
+        const attachment = test.info().attachments.find(
+            (item) =>
+                item.name.startsWith('nexus-self-healing-') &&
+                item.contentType === 'application/json',
+        );
+
+        expect(attachment?.body).toBeDefined();
+
+        const record = JSON.parse(
+            attachment!.body!.toString('utf8'),
+        ) as {
+            status: string;
+        };
+
+        expect(record.status).toBe('HEALED_PASS');
     });
 
     test('rejects an irrelevant AI candidate and preserves the original failure', async ({ page }) => {

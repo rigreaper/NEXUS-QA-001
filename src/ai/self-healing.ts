@@ -1050,6 +1050,8 @@ async function validateCandidate(
 // Playwright test reporting
 // --------------------------------------------------
 
+let healingReportSequence = 0;
+
 async function attachHealingRecord(record: HealingRecord): Promise<void> {
     if (record.status !== 'NORMAL_PASS') {
         const diagnosticTags = [
@@ -1087,48 +1089,28 @@ async function attachHealingRecord(record: HealingRecord): Promise<void> {
                 retry: testInfo.retry,
             },
         };
+        const reportSequence = ++healingReportSequence;
+        const jsonName =
+            `nexus-self-healing-${record.status.toLowerCase()}-${reportSequence}.json`;
 
-        await testInfo.attach(
-            `nexus-self-healing-${record.status.toLowerCase()}.json`,
-            {
-                body: JSON.stringify(reportRecord, null, 2),
-                contentType: 'application/json',
-            },
-        );
+        await testInfo.attach(jsonName, {
+            body: JSON.stringify(reportRecord, null, 2),
+            contentType: 'application/json',
+        });
 
         const locatorSummary = record.replacementLocator
             ? `Replacement used: ${record.replacementLocator}`
             : record.proposedLocator
                 ? `Candidate proposed but not used: ${record.proposedLocator}`
                 : 'Replacement: no locator was proposed.';
-        const textReport = [
-            `Outcome: ${record.status}`,
-            `Test: ${testInfo.titlePath.join(' > ')}`,
-            `Original locator: ${record.originalLocator}`,
-            locatorSummary,
-            `Failure stage: ${record.failureStage ?? 'none'}`,
-            `Reason: ${record.validationReason ?? 'none'}`,
-            `Candidate reason: ${record.candidate?.reason ?? 'none'}`,
-            `Retry succeeded: ${record.retrySucceeded ?? 'not attempted'}`,
-            `Retry error: ${record.retryError ?? 'none'}`,
-            `Timings (ms): ${JSON.stringify(record.timingsMs ?? {})}`,
-            `OpenAI diagnostics: ${JSON.stringify(record.openAI ?? {})}`,
-        ].join('\n');
-
-        await testInfo.attach(
-            `nexus-self-healing-${record.status.toLowerCase()}.txt`,
-            {
-                body: textReport,
-                contentType: 'text/plain',
-            },
-        );
 
         testInfo.annotations.push({
             type: 'nexus-self-healing',
             description: `${record.status}: ${record.target} | ${locatorSummary}`,
         });
-    } catch {
+    } catch (error) {
         // Reporting must never replace or hide the actual test failure.
+        console.error('[NEXUS-QA] Could not attach self-healing details.', error);
     }
 }
 

@@ -599,6 +599,8 @@ Expected result:
 
 The test must not depend on AI randomly returning an incorrect answer. Safety rejection should be verified deterministically through controlled fixtures or candidate responses.
 
+The live CI workflow exercises two successful locator-recovery scenarios. Its job summary aggregates test and recovery outcomes. The uploaded artifact contains the HTML Playwright report, per-test traces, and one ordered `self-healing-summary.json` with each test result and its healing details.
+
 ---
 
 ## 17. Limitations and Non-Goals

@@ -9,6 +9,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'playwright.config.ts'
+      - 'scripts/summarize-ai-self-healing.mjs'
       - 'src/ai/**'
       - 'src/config/test-config.ts'
       - 'tests/ai/**'
@@ -21,6 +22,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'playwright.config.ts'
+      - 'scripts/summarize-ai-self-healing.mjs'
       - 'src/ai/**'
       - 'src/config/test-config.ts'
       - 'tests/ai/**'
@@ -28,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       run_live_ai:
-        description: Run the real OpenAI self-healing test
+        description: Run the real OpenAI self-healing tests
         required: false
         type: boolean
         default: true
@@ -38,7 +40,7 @@ permissions:
 
 jobs:
   live-self-healing:
-    name: Live OpenAI self-healing test
+    name: Live OpenAI self-healing tests
     if: >-
       github.event_name == 'push' ||
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
@@ -72,11 +74,16 @@ jobs:
             exit 1
           fi
 
-      - name: Run real self-healing test
-        run: >-
-          npx playwright test tests/ai/self-healing.spec.ts
-          --project=ai
-          --grep "recovers from an incorrect locator using real OpenAI"
+      - name: Run real self-healing tests
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/playwright-results.json
+        run: npx playwright test tests/ai/self-healing.spec.ts --project=ai --reporter=list,html,json --trace=on
+
+      - name: Summarize live self-healing outcomes
+        if: ${{ always() }}
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/playwright-results.json
+        run: node scripts/summarize-ai-self-healing.mjs
 
       - name: Upload live AI Playwright report
         if: ${{ always() }}
@@ -85,6 +92,7 @@ jobs:
           name: live-ai-self-healing-report
           path: |
             playwright-report/
-            test-results/
+            test-results/**/*.zip
+            test-results/self-healing-summary.json
           if-no-files-found: ignore
           retention-days: 30
