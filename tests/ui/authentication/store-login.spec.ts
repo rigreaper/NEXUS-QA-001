@@ -45,6 +45,11 @@ test.describe('Store Authentication', () => {
         );
         await page.goto(testConfig.qaShopPath);
         await storeLoginPage.openLoginDialog();
+        
+        console.log(
+            'Submit button:',
+            await storeLoginPage.submitButton.ariaSnapshot()
+        );
 
         await expect(storeLoginPage.emailInput).toBeVisible();
         await expect(storeLoginPage.passwordInput).toBeVisible();
