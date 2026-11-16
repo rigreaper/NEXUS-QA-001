@@ -48,6 +48,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-6-luna' }}
+      NEXUS_AI_REPORT: 'true'
 
     steps:
       - name: Checkout repository
