@@ -1,15 +1,21 @@
 import {
     appendFileSync,
     existsSync,
-    readdirSync,
+    mkdirSync,
     readFileSync,
+    writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 
 const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+const playwrightReportPath = process.env.PLAYWRIGHT_JSON_OUTPUT_FILE;
 
 if (!summaryPath) {
     throw new Error('GITHUB_STEP_SUMMARY is not configured.');
+}
+
+if (!playwrightReportPath) {
+    throw new Error('PLAYWRIGHT_JSON_OUTPUT_FILE is not configured.');
 }
 
 const resultsDirectory = process.argv[2] ?? 'test-results';
@@ -19,94 +25,223 @@ const recoveryStatuses = new Set([
     'HEALING_FAILED',
     'HEALING_UNAVAILABLE',
 ]);
-const records = [];
+const testResults = [];
+const reportAvailable = existsSync(playwrightReportPath);
+const playwrightReport = reportAvailable
+    ? JSON.parse(readFileSync(playwrightReportPath, 'utf8'))
+    : undefined;
 
-function collectRecords(directory) {
-    if (!existsSync(directory)) {
-        return;
-    }
+function readHealingRecords(result) {
+    return (result.attachments ?? [])
+        .filter((attachment) =>
+            attachment.contentType === 'application/json' &&
+            /^nexus-self-healing-.+\.json$/.test(attachment.name),
+        )
+        .map((attachment) => {
+            if (typeof attachment.body !== 'string') {
+                throw new Error(
+                    `Healing attachment has no embedded body: ${attachment.name}`,
+                );
+            }
 
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-        const entryPath = path.join(directory, entry.name);
-
-        if (entry.isDirectory() && entry.name !== 'attachments') {
-            collectRecords(entryPath);
-        } else if (
-            entry.isFile() &&
-            /^nexus-self-healing-.+\.json$/.test(entry.name)
-        ) {
-            const record = JSON.parse(readFileSync(entryPath, 'utf8'));
+            const record = JSON.parse(
+                Buffer.from(attachment.body, 'base64').toString('utf8'),
+            );
 
             if (!recoveryStatuses.has(record.status)) {
-                throw new Error(`Unexpected self-healing status in ${entryPath}`);
+                throw new Error(
+                    `Unexpected self-healing status in ${attachment.name}`,
+                );
             }
 
-            if (record.status !== 'NORMAL_PASS') {
-                records.push(record);
-            }
+            return record;
+        });
+}
+
+function getTestStatus(spec, test) {
+    const lastAttempt = test.results?.at(-1);
+
+    if (test.status === 'skipped' || lastAttempt?.status === 'skipped') {
+        return 'skipped';
+    }
+
+    if (test.status === 'flaky') {
+        return 'flaky';
+    }
+
+    return spec.ok ? 'passed' : 'failed';
+}
+
+function visitSuite(suite, parentTitlePath = []) {
+    const titlePath = suite.title
+        ? [...parentTitlePath, suite.title]
+        : parentTitlePath;
+
+    for (const spec of suite.specs ?? []) {
+        for (const test of spec.tests ?? []) {
+            const attempts = (test.results ?? []).map((result) => ({
+                retry: result.retry,
+                status: result.status,
+                durationMs: result.duration,
+                errors: (result.errors ?? []).map((error) => ({
+                    message: error.message,
+                    location: error.location,
+                })),
+                healingActions: readHealingRecords(result),
+                startTime: result.startTime,
+            }));
+            const startTime = attempts.find((attempt) => attempt.startTime)?.startTime;
+
+            testResults.push({
+                title: spec.title,
+                titlePath: [...titlePath, spec.title],
+                file: spec.file ?? suite.file,
+                project: test.projectName,
+                status: getTestStatus(spec, test),
+                outcome: test.status,
+                expectedStatus: test.expectedStatus,
+                startTime,
+                attempts,
+            });
+        }
+    }
+
+    for (const childSuite of suite.suites ?? []) {
+        visitSuite(childSuite, titlePath);
+    }
+}
+
+for (const suite of playwrightReport?.suites ?? []) {
+    visitSuite(suite);
+}
+
+testResults.sort((left, right) => {
+    const leftTime = left.startTime ? Date.parse(left.startTime) : Number.MAX_SAFE_INTEGER;
+    const rightTime = right.startTime ? Date.parse(right.startTime) : Number.MAX_SAFE_INTEGER;
+
+    return leftTime - rightTime;
+});
+
+const testOutcomes = {
+    total: testResults.length,
+    passed: testResults.filter((test) => test.status === 'passed').length,
+    failed: testResults.filter((test) => test.status === 'failed').length,
+    flaky: testResults.filter((test) => test.status === 'flaky').length,
+    skipped: testResults.filter((test) => test.status === 'skipped').length,
+};
+const healingActions = [];
+
+for (const [testIndex, test] of testResults.entries()) {
+    test.order = testIndex + 1;
+    delete test.startTime;
+
+    for (const attempt of test.attempts) {
+        delete attempt.startTime;
+
+        for (const action of attempt.healingActions) {
+            action.order = healingActions.length + 1;
+            action.playwrightStatus = test.status;
+            action.testTitlePath = test.titlePath;
+            healingActions.push(action);
         }
     }
 }
 
-collectRecords(resultsDirectory);
+const recoveryActions = healingActions.filter(
+    (action) => action.status !== 'NORMAL_PASS',
+);
+const healingOutcomes = {
+    normalPass: healingActions.filter((action) => action.status === 'NORMAL_PASS').length,
+    recoveryOutcomes: recoveryActions.length,
+    healed: recoveryActions.filter((action) => action.status === 'HEALED_PASS').length,
+    notHealed: recoveryActions.filter((action) => action.status === 'HEALING_FAILED').length,
+    unavailable: recoveryActions.filter((action) => action.status === 'HEALING_UNAVAILABLE').length,
+};
+const output = {
+    generatedAt: new Date().toISOString(),
+    playwrightReportAvailable: reportAvailable,
+    summary: {
+        tests: testOutcomes,
+        selfHealing: healingOutcomes,
+    },
+    tests: testResults,
+    ...(playwrightReport?.errors?.length
+        ? { runnerErrors: playwrightReport.errors }
+        : {}),
+};
 
-const healed = records.filter((record) => record.status === 'HEALED_PASS').length;
-const failed = records.filter((record) => record.status === 'HEALING_FAILED').length;
-const unavailable = records.filter((record) => record.status === 'HEALING_UNAVAILABLE').length;
+mkdirSync(resultsDirectory, { recursive: true });
+writeFileSync(
+    path.join(resultsDirectory, 'self-healing-summary.json'),
+    `${JSON.stringify(output, null, 2)}\n`,
+    'utf8',
+);
+
 const lines = [];
 const code = (value) =>
     `\`${String(value).replace(/\r?\n/g, ' ').replace(/`/g, '\\`')}\``;
 
-if (records.length === 1) {
-    const record = records[0];
-    const outcome = record.status === 'HEALED_PASS'
+if (!reportAvailable) {
+    lines.push(
+        '### Live AI self-healing summary',
+        '',
+        '- Playwright did not produce a JSON test report; check the test or setup step.',
+        '- Details: see `test-results/self-healing-summary.json` in the artifact.',
+        '',
+    );
+} else if (recoveryActions.length === 1) {
+    const action = recoveryActions[0];
+    const outcome = action.status === 'HEALED_PASS'
         ? 'AI recovery succeeded; the validated replacement action succeeded.'
-        : record.status === 'HEALING_FAILED'
+        : action.status === 'HEALING_FAILED'
             ? 'Recovery was attempted but did not complete successfully.'
             : 'Recovery was unavailable; the original failure was preserved.';
-    const openAIDetails = record.openAI
+    const openAIDetails = action.openAI
         ? [
-            record.openAI.model ? `model=${record.openAI.model}` : undefined,
-            record.openAI.httpStatus !== undefined
-                ? `http=${record.openAI.httpStatus}`
+            action.openAI.model ? `model=${action.openAI.model}` : undefined,
+            action.openAI.httpStatus !== undefined
+                ? `http=${action.openAI.httpStatus}`
                 : undefined,
-            record.openAI.responseStatus
-                ? `response=${record.openAI.responseStatus}`
+            action.openAI.responseStatus
+                ? `response=${action.openAI.responseStatus}`
                 : undefined,
-            record.openAI.incompleteReason
-                ? `incomplete=${record.openAI.incompleteReason}`
+            action.openAI.incompleteReason
+                ? `incomplete=${action.openAI.incompleteReason}`
                 : undefined,
-            record.openAI.errorCode
-                ? `error=${record.openAI.errorCode}`
+            action.openAI.errorCode
+                ? `error=${action.openAI.errorCode}`
                 : undefined,
-            record.openAI.requestDurationMs !== undefined
-                ? `request_ms=${record.openAI.requestDurationMs}`
+            action.openAI.requestDurationMs !== undefined
+                ? `request_ms=${action.openAI.requestDurationMs}`
                 : undefined,
         ].filter((item) => item !== undefined).join(', ')
         : 'not called';
 
     lines.push(
-        `### Self-healing result: ${record.status}`,
+        `### Self-healing result: ${action.status}`,
         '',
-        `- Test: ${code((record.test?.titlePath ?? []).join(' > '))}`,
+        `- Test: ${code(action.testTitlePath.join(' > '))}`,
+        `- Test result: ${action.playwrightStatus}`,
         `- Outcome: ${outcome}`,
-        `- Original locator: ${code(record.originalLocator)}`,
-        `- Proposed locator: ${record.proposedLocator ? code(record.proposedLocator) : 'none'}`,
-        `- Replacement used: ${record.replacementLocator ? code(record.replacementLocator) : 'none'}`,
-        `- Failure stage: ${record.failureStage ?? 'none'}`,
-        `- Details: ${record.validationReason ? code(record.validationReason) : 'none'}`,
+        `- Original locator: ${code(action.originalLocator)}`,
+        `- Proposed locator: ${action.proposedLocator ? code(action.proposedLocator) : 'none'}`,
+        `- Replacement used: ${action.replacementLocator ? code(action.replacementLocator) : 'none'}`,
+        `- Failure stage: ${action.failureStage ?? 'none'}`,
+        `- Details: ${action.validationReason ? code(action.validationReason) : 'none'}`,
         `- OpenAI: ${code(openAIDetails)}`,
+        `- Full ordered report: ${code('test-results/self-healing-summary.json')}`,
         '',
     );
 } else {
     lines.push(
         '### Live AI self-healing summary',
         '',
-        `- Recovery outcomes: ${records.length}`,
-        `- Healed: ${healed}`,
-        `- Not healed: ${failed}`,
-        `- Unavailable: ${unavailable}`,
-        '- Per-attempt details: see the live AI Playwright report artifact.',
+        `- Test results: ${testOutcomes.passed} passed, ${testOutcomes.failed} failed, ${testOutcomes.flaky} flaky, ${testOutcomes.skipped} skipped`,
+        `- Recovery outcomes: ${healingOutcomes.recoveryOutcomes}`,
+        `- Healed: ${healingOutcomes.healed}`,
+        `- Not healed: ${healingOutcomes.notHealed}`,
+        `- Unavailable: ${healingOutcomes.unavailable}`,
+        `- Full ordered report: ${code('test-results/self-healing-summary.json')} in the artifact.`,
         '',
     );
 }

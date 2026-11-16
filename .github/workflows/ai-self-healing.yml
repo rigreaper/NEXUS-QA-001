@@ -75,10 +75,14 @@ jobs:
           fi
 
       - name: Run real self-healing tests
-        run: npx playwright test tests/ai/self-healing.spec.ts --project=ai
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/playwright-results.json
+        run: npx playwright test tests/ai/self-healing.spec.ts --project=ai --reporter=list,html,json --trace=on
 
       - name: Summarize live self-healing outcomes
         if: ${{ always() }}
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ runner.temp }}/playwright-results.json
         run: node scripts/summarize-ai-self-healing.mjs
 
       - name: Upload live AI Playwright report
@@ -88,6 +92,7 @@ jobs:
           name: live-ai-self-healing-report
           path: |
             playwright-report/
-            test-results/
+            test-results/**/*.zip
+            test-results/self-healing-summary.json
           if-no-files-found: ignore
           retention-days: 30

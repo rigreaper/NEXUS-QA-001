@@ -1,7 +1,6 @@
 
 import 'dotenv/config';
 
-import { mkdirSync, writeFileSync } from 'node:fs';
 import { test } from '@playwright/test';
 import { z } from 'zod';
 import type { Locator, Page } from '@playwright/test';
@@ -1093,16 +1092,7 @@ async function attachHealingRecord(record: HealingRecord): Promise<void> {
         const reportSequence = ++healingReportSequence;
         const jsonName =
             `nexus-self-healing-${record.status.toLowerCase()}-${reportSequence}.json`;
-        const jsonPath = testInfo.outputPath(jsonName);
-        const textName =
-            `nexus-self-healing-${record.status.toLowerCase()}-${reportSequence}.txt`;
 
-        mkdirSync(testInfo.outputDir, { recursive: true });
-        writeFileSync(
-            jsonPath,
-            JSON.stringify(reportRecord, null, 2),
-            'utf8',
-        );
         await testInfo.attach(jsonName, {
             body: JSON.stringify(reportRecord, null, 2),
             contentType: 'application/json',
@@ -1113,26 +1103,6 @@ async function attachHealingRecord(record: HealingRecord): Promise<void> {
             : record.proposedLocator
                 ? `Candidate proposed but not used: ${record.proposedLocator}`
                 : 'Replacement: no locator was proposed.';
-        const textReport = [
-            `Outcome: ${record.status}`,
-            `Test: ${testInfo.titlePath.join(' > ')}`,
-            `Original locator: ${record.originalLocator}`,
-            locatorSummary,
-            `Failure stage: ${record.failureStage ?? 'none'}`,
-            `Reason: ${record.validationReason ?? 'none'}`,
-            `Candidate reason: ${record.candidate?.reason ?? 'none'}`,
-            `Retry succeeded: ${record.retrySucceeded ?? 'not attempted'}`,
-            `Retry error: ${record.retryError ?? 'none'}`,
-            `Timings (ms): ${JSON.stringify(record.timingsMs ?? {})}`,
-            `OpenAI diagnostics: ${JSON.stringify(record.openAI ?? {})}`,
-        ].join('\n');
-
-        const textPath = testInfo.outputPath(textName);
-        writeFileSync(textPath, textReport, 'utf8');
-        await testInfo.attach(textName, {
-            body: textReport,
-            contentType: 'text/plain',
-        });
 
         testInfo.annotations.push({
             type: 'nexus-self-healing',
