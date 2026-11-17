@@ -197,25 +197,25 @@ The following screenshots document actual project execution. They should be upda
 
 ### Playwright HTML Report
 
-<!-- Add your actual screenshot at docs/images/playwright-report.png -->
 
-![Playwright HTML Report](docs/images/playwright-report.png)
+
+![Playwright HTML Report](https://github.com/rigreaper/NEXUS-QA-001/blob/main/Playwright_report.PNG?raw=true)
 
 Shows browser and automated test execution results.
 
 ### AI Self-Healing Report
 
-<!-- Add your actual screenshot at docs/images/ai-self-healing-report.png -->
 
-![AI Self-Healing Report](docs/images/ai-self-healing-report.png)
+
+![AI Self-Healing Report](https://github.com/rigreaper/NEXUS-QA-001/blob/main/ai-self-healing-report.PNG?raw=true)
 
 Shows a real recovery attempt, including the original locator failure, AI suggestion, validation and retry outcome.
 
 ### GitHub Actions
 
-<!-- Add your actual screenshot at docs/images/github-actions.png -->
 
-![GitHub Actions](docs/images/github-actions.png)
+
+![GitHub Actions](https://github.com/rigreaper/NEXUS-QA-001/blob/main/github-actions.PNG?raw=true)
 
 Shows automated workflow execution and the resulting CI status.
 
